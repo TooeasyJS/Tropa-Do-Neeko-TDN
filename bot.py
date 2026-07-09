@@ -59,13 +59,17 @@ class SugestaoView(discord.ui.View):
             previous = data['voters'].get(user_id)
 
             if previous == vote_type:
-                data[vote_type] -= 1
-                del data['voters'][user_id]
-            else:
-                if previous:
-                    data[previous] -= 1
-                data[vote_type] += 1
-                data['voters'][user_id] = vote_type
+                await interaction.response.send_message(
+                    '⚠️ Você já votou nessa opção! Clique no outro botão para trocar seu voto.',
+                    ephemeral=True
+                )
+                return
+
+            if previous:
+                data[previous] -= 1
+
+            data[vote_type] += 1
+            data['voters'][user_id] = vote_type
 
             view = SugestaoView()
             for child in view.children:
