@@ -12,21 +12,22 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 SUGESTOES_CHANNEL_ID = 1524639571487494254
+GUILD_ID = 1520963435628593162
 
 if not BOT_TOKEN:
     raise ValueError('BOT_TOKEN nao configurado nas variaveis de ambiente')
 
 intents = discord.Intents.default()
-intents.message_content = True
-intents.guilds = True
 
 class TDNBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix='!', intents=intents)
 
     async def setup_hook(self):
-        await self.tree.sync()
-        logger.info('Slash commands sincronizados com o Discord!')
+        guild = discord.Object(id=GUILD_ID)
+        self.tree.copy_global_to(guild=guild)
+        await self.tree.sync(guild=guild)
+        logger.info(f'Slash commands sincronizados no servidor {GUILD_ID}!')
 
     async def on_ready(self):
         logger.info(f'Bot {self.user} esta online!')
@@ -103,39 +104,47 @@ class SugestaoView(discord.ui.View):
 async def sugerir(interaction: discord.Interaction, mensagem: str):
     await interaction.response.defer(ephemeral=True)
 
-    canal_sugestoes = bot.get_channel(SUGESTOES_CHANNEL_ID)
+    try:
+        canal_sugestoes = interaction.guild.get_channel(SUGESTOES_CHANNEL_ID)
 
-    if canal_sugestoes is None:
+        if canal_sugestoes is None:
+            await interaction.followup.send(
+                '❌ Canal de sugestoes nao encontrado. Verifique se o bot tem acesso ao canal.',
+                ephemeral=True
+            )
+            return
+
+        embed = discord.Embed(
+            description=mensagem,
+            color=discord.Color.from_rgb(88, 101, 242),
+            timestamp=interaction.created_at
+        )
+        embed.set_author(
+            name=f'Sugestao por {interaction.user.display_name}',
+            icon_url=interaction.user.display_avatar.url
+        )
+
+        view = SugestaoView()
+        msg = await canal_sugestoes.send(embed=embed, view=view)
+
+        thread = await msg.create_thread(name='Melhore a sugestao!')
+        await thread.send(
+            f'💬 **Discuta e melhore esta sugestao aqui!**\n'
+            f'Sugestao enviada por {interaction.user.mention}.'
+        )
+
         await interaction.followup.send(
-            '❌ Canal de sugestoes nao encontrado. Verifique se o bot tem acesso ao canal.',
+            f'✅ Sua sugestao foi enviada para {canal_sugestoes.mention}!',
             ephemeral=True
         )
-        return
+        logger.info(f'Sugestao de {interaction.user} ({interaction.user.id}) enviada em #{canal_sugestoes.name}')
 
-    embed = discord.Embed(
-        description=mensagem,
-        color=discord.Color.from_rgb(88, 101, 242),
-        timestamp=interaction.created_at
-    )
-    embed.set_author(
-        name=f'Sugestao por {interaction.user.display_name}',
-        icon_url=interaction.user.display_avatar.url
-    )
-
-    view = SugestaoView()
-    msg = await canal_sugestoes.send(embed=embed, view=view)
-
-    thread = await msg.create_thread(name='Melhore a sugestao!')
-    await thread.send(
-        f'💬 **Discuta e melhore esta sugestao aqui!**\n'
-        f'Sugestao enviada por {interaction.user.mention}.'
-    )
-
-    await interaction.followup.send(
-        f'✅ Sua sugestao foi enviada para {canal_sugestoes.mention}!',
-        ephemeral=True
-    )
-    logger.info(f'Sugestao de {interaction.user} ({interaction.user.id}) enviada em #{canal_sugestoes.name}')
+    except Exception as e:
+        logger.error(f'Erro no comando /sugerir: {e}', exc_info=True)
+        await interaction.followup.send(
+            f'❌ Ocorreu um erro ao enviar a sugestao: {str(e)}',
+            ephemeral=True
+        )
 
 
 bot.run(BOT_TOKEN)
