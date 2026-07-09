@@ -11,6 +11,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
+SUGESTOES_CHANNEL_ID = 1524639571487494254
 
 if not BOT_TOKEN:
     raise ValueError('BOT_TOKEN nao configurado nas variaveis de ambiente')
@@ -102,15 +103,11 @@ class SugestaoView(discord.ui.View):
 async def sugerir(interaction: discord.Interaction, mensagem: str):
     await interaction.response.defer(ephemeral=True)
 
-    canal_sugestoes = None
-    for canal in interaction.guild.text_channels:
-        if 'sugest' in canal.name.lower():
-            canal_sugestoes = canal
-            break
+    canal_sugestoes = bot.get_channel(SUGESTOES_CHANNEL_ID)
 
     if canal_sugestoes is None:
         await interaction.followup.send(
-            '❌ Nao encontrei um canal de sugestoes! Crie um canal com "sugestoes" ou "sugestões" no nome.',
+            '❌ Canal de sugestoes nao encontrado. Verifique se o bot tem acesso ao canal.',
             ephemeral=True
         )
         return
