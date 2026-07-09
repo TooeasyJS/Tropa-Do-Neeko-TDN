@@ -100,6 +100,8 @@ class SugestaoView(discord.ui.View):
 @bot.tree.command(name='sugerir', description='Envie uma sugestao para o servidor!')
 @app_commands.describe(mensagem='Escreva sua sugestao aqui')
 async def sugerir(interaction: discord.Interaction, mensagem: str):
+    await interaction.response.defer(ephemeral=True)
+
     canal_sugestoes = None
     for canal in interaction.guild.text_channels:
         if 'sugest' in canal.name.lower():
@@ -107,7 +109,7 @@ async def sugerir(interaction: discord.Interaction, mensagem: str):
             break
 
     if canal_sugestoes is None:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             '❌ Nao encontrei um canal de sugestoes! Crie um canal com "sugestoes" ou "sugestões" no nome.',
             ephemeral=True
         )
@@ -132,7 +134,7 @@ async def sugerir(interaction: discord.Interaction, mensagem: str):
         f'Sugestao enviada por {interaction.user.mention}.'
     )
 
-    await interaction.response.send_message(
+    await interaction.followup.send(
         f'✅ Sua sugestao foi enviada para {canal_sugestoes.mention}!',
         ephemeral=True
     )
