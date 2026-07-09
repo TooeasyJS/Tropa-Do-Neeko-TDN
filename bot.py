@@ -15,15 +15,83 @@ SUGESTOES_CHANNEL_ID = 1524644043316006983
 GUILD_ID = 1323580646664441877
 
 if not BOT_TOKEN:
-    raise ValueError('BOT_TOKEN nao configurado nas variaveis de ambiente')
+    raise ValueError('BOT_TOKEN nao configurado')
 
 intents = discord.Intents.default()
+
+# Armazena votos por mensagem: {message_id: {"aceitar": int, "recusar": int, "voters": {user_id: "aceitar"|"recusar"}}}
+vote_storage: dict[int, dict] = {}
+
+
+def get_votes(message_id: int) -> dict:
+    if message_id not in vote_storage:
+        vote_storage[message_id] = {"aceitar": 0, "recusar": 0, "voters": {}}
+    return vote_storage[message_id]
+
+
+class SugestaoView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label='Aceitar (0)',
+        style=discord.ButtonStyle.success,
+        custom_id='tdn_btn_aceitar',
+        emoji='✅'
+    )
+    async def btn_aceitar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._handle_vote(interaction, 'aceitar')
+
+    @discord.ui.button(
+        label='Recusar (0)',
+        style=discord.ButtonStyle.danger,
+        custom_id='tdn_btn_recusar',
+        emoji='❌'
+    )
+    async def btn_recusar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._handle_vote(interaction, 'recusar')
+
+    async def _handle_vote(self, interaction: discord.Interaction, vote_type: str):
+        try:
+            msg_id = interaction.message.id
+            user_id = interaction.user.id
+            data = get_votes(msg_id)
+            previous = data['voters'].get(user_id)
+
+            if previous == vote_type:
+                data[vote_type] -= 1
+                del data['voters'][user_id]
+            else:
+                if previous:
+                    data[previous] -= 1
+                data[vote_type] += 1
+                data['voters'][user_id] = vote_type
+
+            view = SugestaoView()
+            for child in view.children:
+                if isinstance(child, discord.ui.Button):
+                    if child.custom_id == 'tdn_btn_aceitar':
+                        child.label = f'Aceitar ({data["aceitar"]})'
+                    elif child.custom_id == 'tdn_btn_recusar':
+                        child.label = f'Recusar ({data["recusar"]})'
+
+            await interaction.response.edit_message(view=view)
+
+        except Exception as e:
+            logger.error(f'Erro ao votar: {e}', exc_info=True)
+            try:
+                await interaction.response.send_message('❌ Erro ao registrar voto.', ephemeral=True)
+            except Exception:
+                pass
+
 
 class TDNBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix='!', intents=intents)
 
     async def setup_hook(self):
+        self.add_view(SugestaoView())
+
         guild = discord.Object(id=GUILD_ID)
         self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
@@ -36,67 +104,8 @@ class TDNBot(commands.Bot):
             name='as sugestoes da Tropa'
         ))
 
+
 bot = TDNBot()
-
-
-class SugestaoView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.aceitar_count = 0
-        self.recusar_count = 0
-        self.voted_users: dict[int, str] = {}
-
-    def _update_labels(self):
-        for child in self.children:
-            if isinstance(child, discord.ui.Button):
-                if child.custom_id == 'btn_aceitar':
-                    child.label = f'Aceitar ({self.aceitar_count})'
-                elif child.custom_id == 'btn_recusar':
-                    child.label = f'Recusar ({self.recusar_count})'
-
-    @discord.ui.button(
-        label='Aceitar (0)',
-        style=discord.ButtonStyle.success,
-        custom_id='btn_aceitar',
-        emoji='✅'
-    )
-    async def btn_aceitar(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id = interaction.user.id
-        voto_anterior = self.voted_users.get(user_id)
-
-        if voto_anterior == 'aceitar':
-            self.aceitar_count -= 1
-            del self.voted_users[user_id]
-        else:
-            if voto_anterior == 'recusar':
-                self.recusar_count -= 1
-            self.aceitar_count += 1
-            self.voted_users[user_id] = 'aceitar'
-
-        self._update_labels()
-        await interaction.response.edit_message(view=self)
-
-    @discord.ui.button(
-        label='Recusar (0)',
-        style=discord.ButtonStyle.danger,
-        custom_id='btn_recusar',
-        emoji='❌'
-    )
-    async def btn_recusar(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id = interaction.user.id
-        voto_anterior = self.voted_users.get(user_id)
-
-        if voto_anterior == 'recusar':
-            self.recusar_count -= 1
-            del self.voted_users[user_id]
-        else:
-            if voto_anterior == 'aceitar':
-                self.aceitar_count -= 1
-            self.recusar_count += 1
-            self.voted_users[user_id] = 'recusar'
-
-        self._update_labels()
-        await interaction.response.edit_message(view=self)
 
 
 @bot.tree.command(name='sugerir', description='Envie uma sugestao para o servidor!')
@@ -109,7 +118,7 @@ async def sugerir(interaction: discord.Interaction, mensagem: str):
 
         if canal_sugestoes is None:
             await interaction.followup.send(
-                '❌ Canal de sugestoes nao encontrado. Verifique se o bot tem acesso ao canal.',
+                '❌ Canal de sugestoes nao encontrado.',
                 ephemeral=True
             )
             return
@@ -127,20 +136,22 @@ async def sugerir(interaction: discord.Interaction, mensagem: str):
         view = SugestaoView()
         msg = await canal_sugestoes.send(embed=embed, view=view)
 
-        thread = await msg.create_thread(name='Melhore a sugestao!')
+        vote_storage[msg.id] = {"aceitar": 0, "recusar": 0, "voters": {}}
+
+        await msg.create_thread(name='Melhore a sugestao!')
 
         await interaction.followup.send(
             f'✅ Sua sugestao foi enviada para {canal_sugestoes.mention}!',
             ephemeral=True
         )
-        logger.info(f'Sugestao de {interaction.user} ({interaction.user.id}) enviada em #{canal_sugestoes.name}')
+        logger.info(f'Sugestao de {interaction.user} enviada (msg id: {msg.id})')
 
     except Exception as e:
-        logger.error(f'Erro no comando /sugerir: {e}', exc_info=True)
-        await interaction.followup.send(
-            f'❌ Ocorreu um erro ao enviar a sugestao: {str(e)}',
-            ephemeral=True
-        )
+        logger.error(f'Erro no /sugerir: {e}', exc_info=True)
+        try:
+            await interaction.followup.send(f'❌ Erro: {str(e)}', ephemeral=True)
+        except Exception:
+            pass
 
 
 bot.run(BOT_TOKEN)
