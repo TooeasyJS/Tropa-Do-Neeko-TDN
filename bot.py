@@ -128,10 +128,6 @@ async def sugerir(interaction: discord.Interaction, mensagem: str):
         msg = await canal_sugestoes.send(embed=embed, view=view)
 
         thread = await msg.create_thread(name='Melhore a sugestao!')
-        await thread.send(
-            f'💬 **Discuta e melhore esta sugestao aqui!**\n'
-            f'Sugestao enviada por {interaction.user.mention}.'
-        )
 
         await interaction.followup.send(
             f'✅ Sua sugestao foi enviada para {canal_sugestoes.mention}!',
