@@ -1,0 +1,126 @@
+{
+  "servidor": {
+    "nome": "Tropa Do Neeko TDN",
+    "id": "1323580646664441877",
+    "dono_id": "290364323270754315",
+    "membros": 144,
+    "online": 20,
+    "descricao": "Este e um servidor de um canal ainda infelizmente chamado Canal do NEEKO! de seu nome, Victor furtado, um servidor cheio de zoeira e diversão, eventos futuros de sailer piece, minecreft, e outros diversos jogos!",
+    "verificacao": 1
+  },
+  "cargos": [
+    { "posicao": 17, "nome": "👑", "id": "1323580646664441885", "cor": null, "hoisted": false },
+    { "posicao": 16, "nome": "Querido Kaleb 🐱‍🚀💖", "id": "1519049789684187336", "cor": "#e91e63", "hoisted": true },
+    { "posicao": 15, "nome": "DONO/IMPERADOR NEEKO 👑👁", "id": "1519052882517692567", "cor": "#f1c40f", "hoisted": true },
+    { "posicao": 14, "nome": "Cargo roxinho do tobinha ❤", "id": "1520958073127174236", "cor": "#71368a", "hoisted": false },
+    { "posicao": 13, "nome": "Loritta", "id": "1519045212779974687", "cor": null, "hoisted": false },
+    { "posicao": 12, "nome": "Server Booster", "id": "1503992230254481611", "cor": "#f47fff", "hoisted": false },
+    { "posicao": 11, "nome": "🔴│Youtuber", "id": "1323580646664441881", "cor": "#ff0000", "hoisted": true },
+    { "posicao": 10, "nome": "ADM fora do grupo do discord", "id": "1524217767228866600", "cor": "#992d22", "hoisted": true },
+    { "posicao": 9, "nome": "❤️│Membro", "id": "1323580646664441879", "cor": "#f377ff", "hoisted": true },
+    { "posicao": 8, "nome": "🤖│BOTS", "id": "1323580646664441878", "cor": "#080508", "hoisted": true },
+    { "posicao": 7, "nome": "Origa Lindão😇", "id": "1519577858064777360", "cor": "#206694", "hoisted": true },
+    { "posicao": 6, "nome": "Cara que brigou com yuyu (2 a 0)", "id": "1520921586906038293", "cor": "#e67e22", "hoisted": true },
+    { "posicao": 5, "nome": "Ajudante 😁", "id": "1519079302627459273", "cor": "#e0b505", "hoisted": false },
+    { "posicao": 4, "nome": "Pros ADM ficar de olho 👀", "id": "1519576987415482519", "cor": "#ff0000", "hoisted": true },
+    { "posicao": 3, "nome": "Membro do canal 💙", "id": "1519048868388405288", "cor": "#3498db", "hoisted": true },
+    { "posicao": 2, "nome": "Novato 👽", "id": "1519043416179212418", "cor": "#2ecc71", "hoisted": true },
+    { "posicao": 1, "nome": "Jockie Music", "id": "1519160651208065116", "cor": null, "hoisted": false },
+    { "posicao": 1, "nome": "Tropa Do Neeko TDN", "id": "1524644237113692284", "cor": null, "hoisted": false },
+    { "posicao": 0, "nome": "@everyone", "id": "1323580646664441877", "cor": null, "hoisted": false }
+  ],
+  "categorias": [
+    {
+      "nome": "Tchau 😭/ Seja-bem-vindo!😚",
+      "id": "1519061970316169397",
+      "canais": [
+        { "tipo": "texto", "nome": "seja-bem-vindo💖", "id": "1519062229394128996" },
+        { "tipo": "texto", "nome": "va-embora-carniça👎", "id": "1519062296104796301" }
+      ]
+    },
+    {
+      "nome": "🐉╵inicío",
+      "id": "1323580646664441886",
+      "canais": [
+        { "tipo": "texto", "nome": "『🥳』bem-vindo", "id": "1323580647050313729" },
+        { "tipo": "texto", "nome": "『📖』regras", "id": "1323580647050313730" },
+        { "tipo": "texto", "nome": "🎮lives-dos-inscritos", "id": "1506774436681089054" },
+        { "tipo": "texto", "nome": "🎮exit-lag-🥇", "id": "1512591318260514856" },
+        { "tipo": "texto", "nome": "『🔴』youtube-avisos", "id": "1519006791864946728" },
+        { "tipo": "texto", "nome": "teste-de-comandos-pros-adm-ou-neeko", "id": "1519045961215901906" },
+        { "tipo": "texto", "nome": "⁜-sugestões-🔥", "id": "1524644043316006983" }
+      ]
+    },
+    {
+      "nome": "🔔╵nofiticações",
+      "id": "1323580647385862173",
+      "canais": [
+        { "tipo": "texto", "nome": "『🎊』avisos", "id": "1323580647603961860" }
+      ]
+    },
+    {
+      "nome": "💬╵interação",
+      "id": "1323580647050313737",
+      "canais": [
+        { "tipo": "texto", "nome": "『💬』chat-geral", "id": "1323580647050313738" },
+        { "tipo": "texto", "nome": "『💩』memes", "id": "1323580647159107647" },
+        { "tipo": "texto", "nome": "『🔗』vídeos-para-assistir-em-live", "id": "1323580647159107648" },
+        { "tipo": "texto", "nome": "videos-para-ver-em-live-2", "id": "1464157756322742304" },
+        { "tipo": "texto", "nome": "¶🧐⁜-ideias-de-video-ou-jogos", "id": "1519046996026065056" },
+        { "tipo": "texto", "nome": "conversa-adm-👑", "id": "1524506136168890428" }
+      ]
+    },
+    {
+      "nome": "📞╵calls",
+      "id": "1323580647050313732",
+      "canais": [
+        { "tipo": "voz", "nome": "🔊┃Geral", "id": "1323580647050313733" },
+        { "tipo": "voz", "nome": "🎣┃Molhando minhoca Fisch", "id": "1323580647050313734" },
+        { "tipo": "voz", "nome": "🛸┃Jogando geral", "id": "1323580647050313736" }
+      ]
+    },
+    {
+      "nome": "Sailor Piece",
+      "id": "1496600887068590210",
+      "canais": [
+        { "tipo": "texto", "nome": "trocas-sailor", "id": "1496601230548402298" },
+        { "tipo": "texto", "nome": "grind-sailor", "id": "1496601278174724166" },
+        { "tipo": "texto", "nome": "dúvidas-sailor", "id": "1496601315575332965" },
+        { "tipo": "texto", "nome": "spawn-boss", "id": "1496601658543706244" }
+      ]
+    },
+    {
+      "nome": "🎮╵jogando",
+      "id": "1323580647159107654",
+      "canais": [
+        { "tipo": "voz", "nome": "🎮┃jogando 1", "id": "1323580647385862165" },
+        { "tipo": "voz", "nome": "🎮┃jogando 2", "id": "1323580647385862166" },
+        { "tipo": "voz", "nome": "🎮┃jogando 3", "id": "1323580647385862167" },
+        { "tipo": "voz", "nome": "🎮┃jogando 4", "id": "1323580647385862168" },
+        { "tipo": "voz", "nome": "🎮┃jogando 5", "id": "1323580647385862169" },
+        { "tipo": "voz", "nome": "🎮┃jogando 6", "id": "1323580647385862170" },
+        { "tipo": "voz", "nome": "🎮┃jogando 7", "id": "1323580647385862171" },
+        { "tipo": "voz", "nome": "🎮┃jogando 8", "id": "1323580647385862172" }
+      ]
+    },
+    {
+      "nome": "⚕ staff",
+      "id": "1323580647603961861",
+      "canais": [
+        { "tipo": "texto", "nome": "chat-staff", "id": "1323580647603961862" },
+        { "tipo": "texto", "nome": "convites", "id": "1323580647603961863" },
+        { "tipo": "texto", "nome": "arquivos-privados", "id": "1323580647603961864" },
+        { "tipo": "texto", "nome": "eventlog", "id": "1323580647603961865" },
+        { "tipo": "texto", "nome": "pessoal-que-ta-avacalhando-no-farm", "id": "1496196238939259070" }
+      ]
+    },
+    {
+      "nome": "Bobeira/diversão",
+      "id": "1519117248277778432",
+      "canais": []
+    }
+  ],
+  "canais_sem_categoria": [
+    { "tipo": "voz", "nome": "Call adm ✔", "id": "1519160714890313818" }
+  ]
+}
