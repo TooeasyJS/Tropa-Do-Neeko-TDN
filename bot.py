@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 SUGESTOES_CHANNEL_ID = 1524644043316006983
-GUILD_ID = 1520963435628593162
+GUILD_ID = 1323580646664441877
 
 if not BOT_TOKEN:
     raise ValueError('BOT_TOKEN nao configurado nas variaveis de ambiente')
