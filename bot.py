@@ -13,13 +13,18 @@ logger = logging.getLogger(__name__)
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 SUGESTOES_CHANNEL_ID = 1524644043316006983
 GUILD_ID = 1323580646664441877
+JOIN_TO_CREATE_ID = 1525225868949983262
+TEMP_VOICE_CATEGORY_ID = 1525225870049153187
 
 if not BOT_TOKEN:
     raise ValueError('BOT_TOKEN nao configurado')
 
 intents = discord.Intents.default()
+intents.voice_states = True
 
 # Armazena votos por mensagem: {message_id: {"aceitar": int, "recusar": int, "voters": {user_id: "aceitar"|"recusar"}}}
+# Armazena canais de voz temporários: {channel_id: owner_user_id}
+temp_channels: dict[int, int] = {}
 vote_storage: dict[int, dict] = {}
 
 
@@ -107,6 +112,31 @@ class TDNBot(commands.Bot):
             type=discord.ActivityType.watching,
             name='as sugestoes da Tropa'
         ))
+
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+        try:
+            # Usuário entrou no canal "Entrar para Criar"
+            if after.channel and after.channel.id == JOIN_TO_CREATE_ID:
+                category = member.guild.get_channel(TEMP_VOICE_CATEGORY_ID)
+                novo_canal = await member.guild.create_voice_channel(
+                    name=f'🎙️ {member.display_name}',
+                    category=category,
+                    bitrate=64000
+                )
+                temp_channels[novo_canal.id] = member.id
+                await member.move_to(novo_canal)
+                logger.info(f'Canal temp criado: {novo_canal.name} (ID: {novo_canal.id}) para {member}')
+
+            # Usuário saiu de um canal temporário
+            if before.channel and before.channel.id in temp_channels:
+                canal = before.channel
+                if len(canal.members) == 0:
+                    del temp_channels[canal.id]
+                    await canal.delete(reason='Canal temporário vazio')
+                    logger.info(f'Canal temp deletado: {canal.name}')
+
+        except Exception as e:
+            logger.error(f'Erro no TempVoice: {e}', exc_info=True)
 
 
 bot = TDNBot()
