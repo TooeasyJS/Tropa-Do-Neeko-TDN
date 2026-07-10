@@ -20,8 +20,9 @@ if not BOT_TOKEN:
 intents = discord.Intents.default()
 intents.voice_states = True
 
-temp_channels: dict[int, int] = {}
-interface_messages: dict[int, int] = {}
+temp_channels: dict[int, int] = {}       # {channel_id: owner_user_id}
+interface_messages: dict[int, int] = {}  # {temp_channel_id: interface_message_id}
+waiting_rooms: dict[int, int] = {}       # {temp_channel_id: waiting_room_channel_id}
 vote_storage: dict[int, dict] = {}
 
 
@@ -46,8 +47,7 @@ class RenameModal(discord.ui.Modal, title='✏️ Renomear Canal'):
     novo_nome = discord.ui.TextInput(
         label='Novo nome do canal',
         placeholder='Ex: Call dos Parceiros',
-        max_length=100,
-        min_length=1
+        max_length=100, min_length=1
     )
 
     def __init__(self, canal_id: int):
@@ -82,7 +82,7 @@ class LimiteModal(discord.ui.Modal, title='👥 Limite de Membros'):
             n = int(str(self.limite))
             if 0 <= n <= 99 and canal:
                 await canal.edit(user_limit=n)
-                msg = f'✅ Limite definido: **{n} membros**!' if n > 0 else '✅ Limite **removido**!'
+                msg = f'✅ Limite: **{n} membros**!' if n > 0 else '✅ Limite **removido**!'
                 await interaction.response.send_message(msg, ephemeral=True)
             else:
                 await interaction.response.send_message('❌ Digite entre 0 e 99.', ephemeral=True)
@@ -90,7 +90,76 @@ class LimiteModal(discord.ui.Modal, title='👥 Limite de Membros'):
             await interaction.response.send_message('❌ Número inválido.', ephemeral=True)
 
 
-# ── KICK SELECT ──────────────────────────────────────────────────
+# ── SELECTS PARA TRUST / UNTRUST ─────────────────────────────────
+
+class TrustUserSelect(discord.ui.UserSelect):
+    def __init__(self, canal: discord.VoiceChannel, action: str):
+        placeholder = 'Selecione quem confiar...' if action == 'trust' else 'Selecione quem desconfiar...'
+        super().__init__(placeholder=placeholder, min_values=1, max_values=1)
+        self.canal = canal
+        self.action = action
+
+    async def callback(self, interaction: discord.Interaction):
+        member = self.values[0]
+        overwrites = dict(self.canal.overwrites)
+        if self.action == 'trust':
+            overwrites[member] = discord.PermissionOverwrite(connect=True, view_channel=True)
+            await self.canal.edit(overwrites=overwrites)
+            await interaction.response.send_message(
+                f'🤝 **{member.display_name}** agora é de confiança e pode entrar mesmo bloqueado!',
+                ephemeral=True
+            )
+        else:
+            if member in overwrites:
+                del overwrites[member]
+                await self.canal.edit(overwrites=overwrites)
+            await interaction.response.send_message(
+                f'🚫 **{member.display_name}** removido da lista de confiança.', ephemeral=True
+            )
+
+
+class TrustView(discord.ui.View):
+    def __init__(self, canal: discord.VoiceChannel, action: str):
+        super().__init__(timeout=30)
+        self.add_item(TrustUserSelect(canal, action))
+
+
+# ── SELECTS PARA BLOCK / UNBLOCK ─────────────────────────────────
+
+class BlockUserSelect(discord.ui.UserSelect):
+    def __init__(self, canal: discord.VoiceChannel, action: str):
+        placeholder = 'Selecione quem bloquear...' if action == 'block' else 'Selecione quem desbloquear...'
+        super().__init__(placeholder=placeholder, min_values=1, max_values=1)
+        self.canal = canal
+        self.action = action
+
+    async def callback(self, interaction: discord.Interaction):
+        member = self.values[0]
+        overwrites = dict(self.canal.overwrites)
+        if self.action == 'block':
+            if member.voice and member.voice.channel == self.canal:
+                await member.move_to(None)
+            overwrites[member] = discord.PermissionOverwrite(connect=False, view_channel=False)
+            await self.canal.edit(overwrites=overwrites)
+            await interaction.response.send_message(
+                f'🚷 **{member.display_name}** foi bloqueado do canal!', ephemeral=True
+            )
+        else:
+            if member in overwrites:
+                del overwrites[member]
+                await self.canal.edit(overwrites=overwrites)
+            await interaction.response.send_message(
+                f'✅ **{member.display_name}** foi desbloqueado!', ephemeral=True
+            )
+
+
+class BlockView(discord.ui.View):
+    def __init__(self, canal: discord.VoiceChannel, action: str):
+        super().__init__(timeout=30)
+        self.add_item(BlockUserSelect(canal, action))
+
+
+# ── SELECT PARA KICK ─────────────────────────────────────────────
 
 class KickUserSelect(discord.ui.UserSelect):
     def __init__(self, canal: discord.VoiceChannel):
@@ -116,7 +185,69 @@ class KickSelectView(discord.ui.View):
         self.add_item(KickUserSelect(canal))
 
 
-# ── INTERFACE VIEW (PERSISTENTE) ─────────────────────────────────
+# ── SELECT PARA TRANSFERIR ───────────────────────────────────────
+
+class TransferUserSelect(discord.ui.UserSelect):
+    def __init__(self, canal: discord.VoiceChannel):
+        super().__init__(placeholder='Selecione o novo dono...', min_values=1, max_values=1)
+        self.canal = canal
+
+    async def callback(self, interaction: discord.Interaction):
+        member = self.values[0]
+        if member.id == interaction.user.id:
+            await interaction.response.send_message('❌ Você já é o dono!', ephemeral=True)
+            return
+        temp_channels[self.canal.id] = member.id
+        await interaction.response.send_message(
+            f'🔄 Canal transferido para **{member.mention}**! Ele agora é o dono.', ephemeral=True
+        )
+        logger.info(f'Canal {self.canal.name} transferido para {member}')
+
+
+class TransferView(discord.ui.View):
+    def __init__(self, canal: discord.VoiceChannel):
+        super().__init__(timeout=30)
+        self.add_item(TransferUserSelect(canal))
+
+
+# ── SELECT PARA REGIÃO ───────────────────────────────────────────
+
+class RegionSelect(discord.ui.Select):
+    def __init__(self, canal: discord.VoiceChannel):
+        options = [
+            discord.SelectOption(label='🌐 Automático', value='auto', description='Deixa o Discord escolher'),
+            discord.SelectOption(label='🇧🇷 Brasil', value='brazil', description='São Paulo'),
+            discord.SelectOption(label='🇺🇸 US Leste', value='us-east'),
+            discord.SelectOption(label='🇺🇸 US Sul', value='us-south'),
+            discord.SelectOption(label='🇺🇸 US Oeste', value='us-west'),
+            discord.SelectOption(label='🇺🇸 US Central', value='us-central'),
+            discord.SelectOption(label='🇪🇺 Europa', value='europe'),
+            discord.SelectOption(label='🇸🇬 Singapura', value='singapore'),
+            discord.SelectOption(label='🇯🇵 Japão', value='japan'),
+            discord.SelectOption(label='🇦🇺 Sydney', value='sydney'),
+            discord.SelectOption(label='🇿🇦 África do Sul', value='southafrica'),
+            discord.SelectOption(label='🇮🇳 Índia', value='india'),
+        ]
+        super().__init__(placeholder='Selecione a região de voz...', options=options)
+        self.canal = canal
+
+    async def callback(self, interaction: discord.Interaction):
+        value = self.values[0]
+        region = None if value == 'auto' else value
+        await self.canal.edit(rtc_region=region)
+        label = next(o.label for o in self.options if o.value == value)
+        await interaction.response.send_message(
+            f'🌍 Região alterada para **{label}**!', ephemeral=True
+        )
+
+
+class RegionView(discord.ui.View):
+    def __init__(self, canal: discord.VoiceChannel):
+        super().__init__(timeout=30)
+        self.add_item(RegionSelect(canal))
+
+
+# ── INTERFACE VIEW (PERSISTENTE) — 15 BOTÕES ─────────────────────
 
 class InterfaceView(discord.ui.View):
     def __init__(self):
@@ -132,6 +263,7 @@ class InterfaceView(discord.ui.View):
             )
         return canal
 
+    # ── ROW 0 ──────────────────────────────────────────────────
     @discord.ui.button(label='✏️ Nome', style=discord.ButtonStyle.secondary, custom_id='tv_btn_nome', row=0)
     async def btn_nome(self, interaction: discord.Interaction, button: discord.ui.Button):
         canal = await self._get_canal(interaction)
@@ -150,20 +282,96 @@ class InterfaceView(discord.ui.View):
         if canal:
             everyone = interaction.guild.default_role
             overwrites = dict(canal.overwrites)
-            current = overwrites.get(everyone)
-            locked = current is not None and current.connect is False
+            current = overwrites.get(everyone, discord.PermissionOverwrite())
+            pair = current.pair()
+            new_ow = discord.PermissionOverwrite.from_pair(pair[0], pair[1])
+            locked = pair[1].connect  # True if connect is denied
             if locked:
-                overwrites[everyone] = discord.PermissionOverwrite(connect=True)
-                await canal.edit(overwrites=overwrites)
-                await interaction.response.send_message(
-                    '🔓 Canal **desbloqueado**! Todos podem entrar.', ephemeral=True
-                )
+                new_ow.connect = None
+                await canal.edit(overwrites={**overwrites, everyone: new_ow})
+                await interaction.response.send_message('🔓 Canal **desbloqueado**! Todos podem entrar.', ephemeral=True)
             else:
-                overwrites[everyone] = discord.PermissionOverwrite(connect=False)
-                await canal.edit(overwrites=overwrites)
-                await interaction.response.send_message(
-                    '🔒 Canal **bloqueado**! Só convidados entram.', ephemeral=True
+                new_ow.connect = False
+                await canal.edit(overwrites={**overwrites, everyone: new_ow})
+                await interaction.response.send_message('🔒 Canal **bloqueado**! Só convidados entram.', ephemeral=True)
+
+    @discord.ui.button(label='⏳ Sala Espera', style=discord.ButtonStyle.secondary, custom_id='tv_btn_waiting', row=0)
+    async def btn_waiting(self, interaction: discord.Interaction, button: discord.ui.Button):
+        canal = await self._get_canal(interaction)
+        if canal:
+            if canal.id in waiting_rooms:
+                wr_ch = interaction.guild.get_channel(waiting_rooms[canal.id])
+                if wr_ch:
+                    await wr_ch.delete(reason='Sala de espera desativada')
+                del waiting_rooms[canal.id]
+                await interaction.response.send_message('✅ Sala de espera **desativada**!', ephemeral=True)
+            else:
+                category = interaction.guild.get_channel(TEMP_VOICE_CATEGORY_ID)
+                wr = await interaction.guild.create_voice_channel(
+                    name=f'⏳ Espera — {interaction.user.display_name}',
+                    category=category
                 )
+                waiting_rooms[canal.id] = wr.id
+                everyone = interaction.guild.default_role
+                overwrites = dict(canal.overwrites)
+                current = overwrites.get(everyone, discord.PermissionOverwrite())
+                pair = current.pair()
+                new_ow = discord.PermissionOverwrite.from_pair(pair[0], pair[1])
+                new_ow.connect = False
+                await canal.edit(overwrites={**overwrites, everyone: new_ow})
+                await interaction.response.send_message(
+                    f'⏳ Sala de espera criada: {wr.mention}\n'
+                    'Membros aguardarão lá até você convidá-los com **📨 Convidar**.',
+                    ephemeral=True
+                )
+
+    @discord.ui.button(label='💬 Chat', style=discord.ButtonStyle.secondary, custom_id='tv_btn_chat', row=0)
+    async def btn_chat(self, interaction: discord.Interaction, button: discord.ui.Button):
+        canal = await self._get_canal(interaction)
+        if canal:
+            everyone = interaction.guild.default_role
+            overwrites = dict(canal.overwrites)
+            current = overwrites.get(everyone, discord.PermissionOverwrite())
+            pair = current.pair()
+            new_ow = discord.PermissionOverwrite.from_pair(pair[0], pair[1])
+            chat_denied = pair[1].send_messages
+            if chat_denied:
+                new_ow.send_messages = None
+                await canal.edit(overwrites={**overwrites, everyone: new_ow})
+                await interaction.response.send_message('💬 Chat **ativado** no canal de voz!', ephemeral=True)
+            else:
+                new_ow.send_messages = False
+                await canal.edit(overwrites={**overwrites, everyone: new_ow})
+                await interaction.response.send_message('🔇 Chat **desativado** no canal de voz!', ephemeral=True)
+
+    # ── ROW 1 ──────────────────────────────────────────────────
+    @discord.ui.button(label='🤝 Confiar', style=discord.ButtonStyle.success, custom_id='tv_btn_trust', row=1)
+    async def btn_trust(self, interaction: discord.Interaction, button: discord.ui.Button):
+        canal = await self._get_canal(interaction)
+        if canal:
+            await interaction.response.send_message(
+                '🤝 Selecione quem confiar (pode entrar mesmo bloqueado):',
+                view=TrustView(canal, 'trust'), ephemeral=True
+            )
+
+    @discord.ui.button(label='🚫 Desconfiar', style=discord.ButtonStyle.secondary, custom_id='tv_btn_untrust', row=1)
+    async def btn_untrust(self, interaction: discord.Interaction, button: discord.ui.Button):
+        canal = await self._get_canal(interaction)
+        if canal:
+            await interaction.response.send_message(
+                '🚫 Selecione quem remover da confiança:',
+                view=TrustView(canal, 'untrust'), ephemeral=True
+            )
+
+    @discord.ui.button(label='📨 Convidar', style=discord.ButtonStyle.secondary, custom_id='tv_btn_invite', row=1)
+    async def btn_invite(self, interaction: discord.Interaction, button: discord.ui.Button):
+        canal = await self._get_canal(interaction)
+        if canal:
+            invite = await canal.create_invite(max_age=3600, max_uses=10, reason='Convite TempVoice')
+            await interaction.response.send_message(
+                f'📨 **Link de convite** para seu canal (válido 1h / 10 usos):\n{invite.url}',
+                ephemeral=True
+            )
 
     @discord.ui.button(label='👢 Kick', style=discord.ButtonStyle.danger, custom_id='tv_btn_kick', row=1)
     async def btn_kick(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -171,21 +379,88 @@ class InterfaceView(discord.ui.View):
         if canal:
             others = [m for m in canal.members if m.id != interaction.user.id]
             if not others:
-                await interaction.response.send_message(
-                    '❌ Ninguém mais no canal para expulsar.', ephemeral=True
-                )
+                await interaction.response.send_message('❌ Ninguém mais no canal para expulsar.', ephemeral=True)
                 return
-            view = KickSelectView(canal)
             await interaction.response.send_message(
-                '👢 Selecione quem expulsar:', view=view, ephemeral=True
+                '👢 Selecione quem expulsar:', view=KickSelectView(canal), ephemeral=True
             )
 
-    @discord.ui.button(label='🗑️ Deletar', style=discord.ButtonStyle.danger, custom_id='tv_btn_delete', row=1)
+    @discord.ui.button(label='🌍 Região', style=discord.ButtonStyle.secondary, custom_id='tv_btn_region', row=1)
+    async def btn_region(self, interaction: discord.Interaction, button: discord.ui.Button):
+        canal = await self._get_canal(interaction)
+        if canal:
+            await interaction.response.send_message(
+                '🌍 Selecione a região de voz:', view=RegionView(canal), ephemeral=True
+            )
+
+    # ── ROW 2 ──────────────────────────────────────────────────
+    @discord.ui.button(label='🚷 Bloquear', style=discord.ButtonStyle.danger, custom_id='tv_btn_block', row=2)
+    async def btn_block(self, interaction: discord.Interaction, button: discord.ui.Button):
+        canal = await self._get_canal(interaction)
+        if canal:
+            await interaction.response.send_message(
+                '🚷 Selecione quem bloquear do canal:', view=BlockView(canal, 'block'), ephemeral=True
+            )
+
+    @discord.ui.button(label='✅ Desbloquear', style=discord.ButtonStyle.success, custom_id='tv_btn_unblock', row=2)
+    async def btn_unblock(self, interaction: discord.Interaction, button: discord.ui.Button):
+        canal = await self._get_canal(interaction)
+        if canal:
+            await interaction.response.send_message(
+                '✅ Selecione quem desbloquear:', view=BlockView(canal, 'unblock'), ephemeral=True
+            )
+
+    @discord.ui.button(label='👑 Reivindicar', style=discord.ButtonStyle.secondary, custom_id='tv_btn_claim', row=2)
+    async def btn_claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        claimed = None
+        for ch_id, owner_id in list(temp_channels.items()):
+            if owner_id == interaction.user.id:
+                await interaction.response.send_message(
+                    '❌ Você já é dono de um canal!', ephemeral=True
+                )
+                return
+            ch = interaction.guild.get_channel(ch_id)
+            if not ch:
+                continue
+            if interaction.user not in ch.members:
+                continue
+            owner = interaction.guild.get_member(owner_id)
+            if owner is None or owner.voice is None or owner.voice.channel != ch:
+                claimed = (ch_id, ch)
+                break
+
+        if claimed:
+            ch_id, ch = claimed
+            temp_channels[ch_id] = interaction.user.id
+            await interaction.response.send_message(
+                f'👑 Você agora é o dono do canal **{ch.name}**!', ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                '❌ Nenhum canal para reivindicar.\n'
+                'O dono ainda está no canal ou você não está em nenhum canal temporário.',
+                ephemeral=True
+            )
+
+    @discord.ui.button(label='🔄 Transferir', style=discord.ButtonStyle.secondary, custom_id='tv_btn_transfer', row=2)
+    async def btn_transfer(self, interaction: discord.Interaction, button: discord.ui.Button):
+        canal = await self._get_canal(interaction)
+        if canal:
+            await interaction.response.send_message(
+                '🔄 Selecione o novo dono do canal:', view=TransferView(canal), ephemeral=True
+            )
+
+    @discord.ui.button(label='🗑️ Deletar', style=discord.ButtonStyle.danger, custom_id='tv_btn_delete', row=2)
     async def btn_delete(self, interaction: discord.Interaction, button: discord.ui.Button):
         canal = await self._get_canal(interaction)
         if canal:
             await interaction.response.send_message('✅ Canal deletado!', ephemeral=True)
             canal_id = canal.id
+            if canal_id in waiting_rooms:
+                wr = interaction.guild.get_channel(waiting_rooms[canal_id])
+                if wr:
+                    await wr.delete(reason='Canal principal deletado')
+                del waiting_rooms[canal_id]
             if canal_id in temp_channels:
                 del temp_channels[canal_id]
             if canal_id in interface_messages:
@@ -284,6 +559,7 @@ class TDNBot(commands.Bot):
         before: discord.VoiceState, after: discord.VoiceState
     ):
         try:
+            # Entrou no canal "Entrar para Criar"
             if after.channel and after.channel.id == JOIN_TO_CREATE_ID:
                 category = member.guild.get_channel(TEMP_VOICE_CATEGORY_ID)
                 novo_canal = await member.guild.create_voice_channel(
@@ -307,13 +583,17 @@ class TDNBot(commands.Bot):
                     embed.add_field(name='Canal', value=novo_canal.mention, inline=True)
                     embed.add_field(name='Dono', value=member.mention, inline=True)
                     embed.add_field(
-                        name='Botões disponíveis',
+                        name='O que cada botão faz',
                         value=(
-                            '✏️ **Nome** — renomear o canal\n'
-                            '👥 **Limite** — limitar vagas\n'
-                            '🔒 **Privacidade** — bloquear/desbloquear\n'
-                            '👢 **Kick** — expulsar alguém\n'
-                            '🗑️ **Deletar** — encerrar o canal'
+                            '✏️ **Nome** — renomear  •  👥 **Limite** — limitar vagas\n'
+                            '🔒 **Privacidade** — bloquear/abrir  •  ⏳ **Sala Espera** — fila de espera\n'
+                            '💬 **Chat** — ativar/desativar chat\n'
+                            '🤝 **Confiar** — dar acesso  •  🚫 **Desconfiar** — remover acesso\n'
+                            '📨 **Convidar** — gerar link  •  👢 **Kick** — expulsar\n'
+                            '🌍 **Região** — trocar região de voz\n'
+                            '🚷 **Bloquear** — banir do canal  •  ✅ **Desbloquear** — remover ban\n'
+                            '👑 **Reivindicar** — assumir canal sem dono\n'
+                            '🔄 **Transferir** — passar dono  •  🗑️ **Deletar** — encerrar'
                         ),
                         inline=False
                     )
@@ -323,10 +603,29 @@ class TDNBot(commands.Bot):
 
                 logger.info(f'Canal temp criado: {novo_canal.name} (ID: {novo_canal.id}) para {member}')
 
+            # Saiu de um canal temporário
             if before.channel and before.channel.id in temp_channels:
                 canal = before.channel
+
+                # Lógica de sala de espera: mover não-confiáveis para espera
+                if after.channel and after.channel.id in temp_channels:
+                    ch_id = after.channel.id
+                    if ch_id in waiting_rooms:
+                        owner_id = temp_channels.get(ch_id)
+                        if member.id != owner_id:
+                            ow = after.channel.overwrites_for(member)
+                            if ow.connect is not True:
+                                wr_ch = member.guild.get_channel(waiting_rooms[ch_id])
+                                if wr_ch:
+                                    await member.move_to(wr_ch)
+
                 if len(canal.members) == 0:
                     canal_id = canal.id
+                    if canal_id in waiting_rooms:
+                        wr = member.guild.get_channel(waiting_rooms[canal_id])
+                        if wr:
+                            await wr.delete(reason='Canal principal vazio')
+                        del waiting_rooms[canal_id]
                     if canal_id in interface_messages:
                         try:
                             iface_ch = member.guild.get_channel(INTERFACE_CHANNEL_ID)
